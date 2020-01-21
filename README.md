@@ -108,7 +108,10 @@ Additionally, a history of the agents trades will show up in your browser using 
 ### Note
 
 _Unfortunately, this project is no longer active and I haven't had the chance to work on it for some time now, but I really appreciate that people are interested and I will try my best to answer any questions or fix bugs through pull requests. Note, that my answers might be slow at times since I need a bit of time to re-familiarize myself with the project before moving on to debug._
-
+ About the result:
+ 1. the reward plot is shown during the training process
+ 2. In the trailing mode, the price and action of the test process is shown. 
+ 3. The pbl is calculated based on the action, where three different types of slippage are considered.
 ### References
 
 1. K. S. Zarkias, N. Passalis, A. Tsantekidis and A. Tefas, "Deep Reinforcement Learning for Financial Trading Using Price Trailing," ICASSP 2019 - 2019 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), Brighton, United Kingdom, 2019, pp. 3067-3071.

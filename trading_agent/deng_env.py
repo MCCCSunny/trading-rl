@@ -88,7 +88,7 @@ class Deng(Environment):
             # if (len(self.memory) != 0):  #if memory is not empty
             #    self.render()
 
-            self.data = np.load(self.test_data)
+            self.data = self.test_data
             self.data_size = len(self.data)
             self.position = self.test_starts[self.test_starts_index]
             self.test_starts_index += 1
@@ -96,7 +96,7 @@ class Deng(Environment):
             self.test_folder = self.folder + '/Test_' + str(self.test_starts_index)
             os.makedirs(self.test_folder)
         elif self.validation_process:
-            self.data = np.load(self.validation_data)
+            self.data = self.validation_data
             self.data_size = len(self.data)
             self.position = self.val_starts[self.val_starts_index]
             self.val_starts_index += 1

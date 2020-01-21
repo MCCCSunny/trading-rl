@@ -38,7 +38,7 @@ class Environment(gym.Env):
         self.steps = steps
         self.test_folder = folder
         self.test_data = test_data
-        self.data = np.load(train_data)
+        self.data = train_data
         self.data_size = len(self.data)
 
         self.test_starts = test_starts
@@ -95,7 +95,7 @@ class Environment(gym.Env):
         values = np.array([x[1] for x in self.memory])
         values = values.reshape((-1,))
 
-        self.pnl_1 = self.pnl_of_trades(env_type, actions, values, slippage=0.0)
+        self.pnl_1 = self.pnl_of_trades(env_type, actions, values, slippage=0.0) #需要自己定义函数
         self.pnl_e6 = self.pnl_of_trades(env_type, actions, values, slippage=0.000002)
         self.pnl_e5 = self.pnl_of_trades(env_type, actions, values, slippage=0.00002)
 

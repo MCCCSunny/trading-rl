@@ -1,3 +1,4 @@
+import pdb
 from deng_env import Deng as DengEnv
 from trail_env import Trail as TrailEnv
 
@@ -23,34 +24,47 @@ from pathlib import Path
 import datetime
 import json
 
+import pandas as pd
+import pymongo
+client = pymongo.MongoClient('localhost', 27017)
+db = client['tushare_stock']
+table = db['600036']
+
+# 读取数据
+stock_data = pd.DataFrame(list(table.find()))
+close_data = np.array(stock_data['close'])
+
 ENV_NAME = 'trading-rl'
 
 trailing = 'trailing'
 deng = 'deng'
 
-METHOD = deng  # Choose between environments
+METHOD = trailing  # Choose between environments
 
 directory = str(Path.cwd().parent)  # Get the parent directory of the current working directory
 data_directory = directory + "/data"
 
 # Hardware Parameters
-CPU = True  # Selection between CPU or GPU
-CPU_cores = 1  # If CPU, how many cores
+GPU = True  # Selection between CPU or GPU
+CPU_cores = 8  # If CPU, how many cores
 GPU_mem_use = 0.25  # In both cases the GPU mem is going to be used, choose fraction to use
 
 # Data Parameters
-train_data = data_directory + '/train_data.npy'  # path to training data
+train_data = close_data[:int(len(close_data)*0.6)]
+#data_directory + '/train_data.npy'  # path to training data
 MAX_DATA_SIZE = 12000  # Maximum size of data
 DATA_SIZE = MAX_DATA_SIZE  # Size of data you want to use for training
 
-test_data = data_directory + '/test_data.npy'  # path to test data
+test_data = close_data[int(len(close_data)*0.6):int(len(close_data)*0.8)]
+#data_directory + '/test_data.npy'  # path to test data
 TEST_EPOCHS = 1  # How many test runs / epochs
 TEST_POINTS = [0]  # From which point in the time series to start in each epoch
 TEST_STEPS = 2000  # For how many points to run the epoch
 
 # Validation Data
 VALIDATE = False  # Use a validation set if available
-VAL_DATA = data_directory + '/validation_data.npy'  # path to validation data set
+VAL_DATA = close_data[int(len(close_data)*0.8):]
+#data_directory + '/validation_data.npy'  # path to validation data set
 VAL_SIZE = None  # Set the size of the validation data you want to use
 TEST_EPOCHS_GEN = None  # How many epochs for validation
 TEST_STEPS_GEN = None  # How many steps in each epoch for validation
@@ -103,8 +117,8 @@ START_FROM_TRAINED = False  # If you want to already start training from some we
 TRAINED_WEIGHTS = None  # Provide here the path to the h5f / hdf5 weight file
 
 now = datetime.datetime.now()
-DATE = str(now.day) + "." + str(now.month) + "_" + str(now.hour) + ":" + str(now.minute)
-FOLDER = METHOD + "/e:" + str(EPOCHS) + "_s:" + str(STEPS) + "_w:" + str(WINDOW_LENGTH) + "_" + DATE
+DATE = str(now.day) + "_" + str(now.month) + "_" + str(now.hour) + "_" + str(now.minute)
+FOLDER = '/'+METHOD + "/e_" + str(EPOCHS) + "_s_" + str(STEPS) + "_w_" + str(WINDOW_LENGTH) + "_" + DATE
 
 
 def config_hard():
@@ -113,14 +127,18 @@ def config_hard():
     """
     config = tf.ConfigProto()
 
-    if CPU:
+    if GPU:
         config = tf.ConfigProto(device_count = {'GPU': 0},
                                 intra_op_parallelism_threads=CPU_cores,
                                 inter_op_parallelism_threads=CPU_cores)
 
-    config.gpu_options.per_process_gpu_memory_fraction = GPU_mem_use
+        config.gpu_options.per_process_gpu_memory_fraction = GPU_mem_use
+        set_session(tf.Session(config=config))
+    else:
+        config = tf.ConfigProto(allow_soft_placement=True,
+                             log_device_placement=True)
+        set_session(tf.Session(config=config))
 
-    set_session(tf.Session(config=config))
 
 
 def main():
@@ -139,20 +157,23 @@ def main():
                       window_in=WINDOW_LENGTH, limit_data=DATA_SIZE, one_hot=ONE_HOT, cost=COST_D)
 
     # set up the model
-    model = set_model(env)
+    model = set_model(env) #构建agent模型
 
-    memory = SequentialMemory(limit=MEM_SIZE, window_length=WINDOW_LENGTH)
+    memory = SequentialMemory(limit=MEM_SIZE, window_length=WINDOW_LENGTH) #用来存储experience, limit为最多存储多少个
 
     # Exploration policy
     policy = LinearAnnealedPolicy(EpsGreedyQPolicy(), attr='eps',
                                   value_max=1.0, value_min=0.1, value_test=0.05, nb_steps=EXPLORE_STEPS)
-
+    # greedy Q策略中需要去平衡exploration与exploitation两者间关系，用这个函数来控制这个参数值
+    # value_max value_min指的是从最大值开始，衰减到最小值
+    # nb_steps:模型的训练步数
     nb_actions = env.action_space.n  # set up number of actions (outputs)
 
     # set up keras-rl agent
     dqn = DQNAgent(model=model, gamma=GAMMA, nb_actions=nb_actions, memory=memory,
                    batch_size=BATCH_SIZE, nb_steps_warmup=1000,
                    target_model_update=TAR_MOD_UP, policy=policy, delta_clip=DELTA_CLIP)
+    # nb_steps_warmup: 在模型训练前保存多少个用于训练的batch大小
 
     dqn.compile(Adam(lr=LR, decay=LR_DEC), metrics=['mse'])
 
@@ -164,15 +185,15 @@ def main():
     else:
         train(env, dqn)
 
-    fin_stats(env, STEPS)
+    fin_stats(env, STEPS) #统计多头 空头 
     test(env, dqn)
 
 
 def set_model(env):
     model = Sequential()
     model.add(Flatten(input_shape=(WINDOW_LENGTH,) + env.observation_space.shape))
-    model.add(Dense(NODES))
-    model.add(PReLU())
+    model.add(Dense(NODES)) #全连接层
+    model.add(PReLU()) #
     model.add(Dense(NODES * 2))
     model.add(PReLU())
     model.add(Dense(NODES * 4))
@@ -272,6 +293,9 @@ def test(env, dqn):
 
 
 def fin_stats(env, steps):
+    '''
+    统计做多/做空/不动的交易次数
+    '''
     longs = len(env.long_actions)
     shorts = len(env.short_actions)
     neutrals = steps - longs - shorts
@@ -314,12 +338,12 @@ def write_model_info():
         info['ce'] = CE
         info['dp'] = DP
         info['reset_from_margin'] = RESET_FROM_MARGIN
-
-    os.makedirs(FOLDER)
+    if not os.path.exists(FOLDER):
+        os.makedirs(FOLDER) 
     with open(FOLDER + '/agent_info.json', 'w') as f:
         json.dump(info, f)
 
 
 if __name__ == '__main__':
-    config_hard()
+    config_hard() #配置 GPU or CPU
     main()

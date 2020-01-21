@@ -62,7 +62,7 @@ class Trail(Environment):
         c_val = self.data[self.position]  # this is p_t
 
         if action == 2:  # sell / short
-            self.action = SELL
+            self.action = SELL # SELL=-1
             self.value -= self.value * self.turn  # Update s(t+1) = s(t) + [s(t) * a]
             self.short_actions.append([self.position, c_val])
             self.prev_fin_pos = SELL
@@ -107,14 +107,14 @@ class Trail(Environment):
         """
         # If its testing phase, save results in a different folder
         if self.testing:
-            self.data = np.load(self.test_data)
+            self.data = self.test_data
             self.data_size = len(self.data)
             self.position = self.test_starts[self.test_starts_index]
             self.test_starts_index += 1
             self.test_folder = self.folder + '/Test_' + str(self.test_starts_index)
             os.makedirs(self.test_folder)
         elif self.validation_process:  # Validation process is on different data
-            self.data = np.load(self.validation_data)
+            self.data = self.validation_data
             self.data_size = len(self.data)
             self.position = self.val_starts[self.val_starts_index]
             self.val_starts_index += 1
