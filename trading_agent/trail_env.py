@@ -8,7 +8,7 @@ import plotter as plt
 import os
 import random
 import numpy as np
-
+import pdb
 # Set indices for different trade actions
 BUY = 1
 NEUTRAL = 0
@@ -59,7 +59,7 @@ class Trail(Environment):
         return: the new state, reward and if the data are done
         """
 
-        c_val = self.data[self.position]  # this is p_t
+        c_val = self.data.iloc[self.position].values[0]  # this is p_t
 
         if action == 2:  # sell / short
             self.action = SELL # SELL=-1
@@ -89,7 +89,7 @@ class Trail(Environment):
 
             # If the agent gets out of boundaries reset its trade position
             if self.reset_margin:
-                value = self.data[self.position]
+                value = self.data.iloc[self.position].values[0]
                 upper = value + self.margin
                 lower = value - self.margin
                 if self.value > upper or self.value < lower:
@@ -123,7 +123,7 @@ class Trail(Environment):
             # In case you want to limit the number of data to use in training, uncomment the next line
             # end = self.limit_data
             end = self.data_size - self.steps - 1
-            self.position = random.randint(begin, end)
+            self.position = random.randint(begin, end) #随便从一个时间点开始
 
         # Save previous epoch's rewards
         self.rewards.append(self.epoch_reward)
@@ -139,7 +139,7 @@ class Trail(Environment):
         self.reward = 0
 
         # Start again from a new index
-        self.value = self.data[self.position]
+        self.value = self.data.iloc[self.position].values[0]
         self.action = 0  # action in step t
         self.prev_action = 0  # action of t-1 step
 
@@ -168,8 +168,8 @@ class Trail(Environment):
         """
         Prepare the input to the agent
         """
-        input_up = (self.data[self.position] + self.margin) - self.value  # [0] - up values_std: ~0.0006
-        input_down = self.value - (self.data[self.position] - self.margin)  # [2] - down
+        input_up = (self.data.iloc[self.position].values[0] + self.margin) - self.value  # [0] - up values_std: ~0.0006
+        input_down = self.value - (self.data.iloc[self.position].values[0] - self.margin)  # [2] - down
 
         # Rescale input to a better range
         input_up = input_up / 0.0006
@@ -191,10 +191,9 @@ class Trail(Environment):
         Normalize the reward to a proper range
         """
 
-        c_val = self.data[self.position]  # p(t)
+        c_val = self.data.iloc[self.position].values[0]  # p(t)
         up_margin = c_val + self.margin  # p(t) + m
         down_margin = c_val - self.margin  # p(t) - m
-
         # Because its almost impossible to get the exact number, use an acceptable slack
         if np.abs(c_val - self.value) < 0.00001:
             reward = 1

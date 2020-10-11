@@ -27,22 +27,24 @@ import json
 import pandas as pd
 import pymongo
 client = pymongo.MongoClient('localhost', 27017)
-db = client['tushare_stock']
+db = client['JointQuant']
 table = db['600036']
-
+startTime = '2005-01-01'
+endTime = '2019-12-31'
+eTime_train ='2016-04-19'
+sTime_test = '2016-04-20'
 # 读取数据
 stock_data = pd.DataFrame(list(table.find()))
-close_data = np.array(stock_data['close'])
+stock_data = stock_data.set_index('date').loc[startTime:endTime]
+close_data = stock_data[['close']]
 
 ENV_NAME = 'trading-rl'
-
 trailing = 'trailing'
 deng = 'deng'
 
 METHOD = trailing  # Choose between environments
 
 directory = str(Path.cwd().parent)  # Get the parent directory of the current working directory
-data_directory = directory + "/data"
 
 # Hardware Parameters
 GPU = True  # Selection between CPU or GPU
@@ -50,27 +52,18 @@ CPU_cores = 8  # If CPU, how many cores
 GPU_mem_use = 0.25  # In both cases the GPU mem is going to be used, choose fraction to use
 
 # Data Parameters
-train_data = close_data[:int(len(close_data)*0.6)]
-#data_directory + '/train_data.npy'  # path to training data
+train_data = close_data.loc[:eTime_train]
 MAX_DATA_SIZE = 12000  # Maximum size of data
 DATA_SIZE = MAX_DATA_SIZE  # Size of data you want to use for training
 
-test_data = close_data[int(len(close_data)*0.6):int(len(close_data)*0.8)]
-#data_directory + '/test_data.npy'  # path to test data
+test_data = close_data.loc[sTime_test:]
 TEST_EPOCHS = 1  # How many test runs / epochs
 TEST_POINTS = [0]  # From which point in the time series to start in each epoch
 TEST_STEPS = 2000  # For how many points to run the epoch
 
-# Validation Data
-VALIDATE = False  # Use a validation set if available
-VAL_DATA = close_data[int(len(close_data)*0.8):]
-#data_directory + '/validation_data.npy'  # path to validation data set
-VAL_SIZE = None  # Set the size of the validation data you want to use
+VALIDATE = False
 TEST_EPOCHS_GEN = None  # How many epochs for validation
 TEST_STEPS_GEN = None  # How many steps in each epoch for validation
-
-# Initialize random starts within the validation data
-VAL_STARTS = None  # random.randint(low=0, high=VAL_SIZE-TEST_STEPS_GEN-1, size=TEST_EPOCHS_GEN)
 
 # Environment Parameters
 # 1: Trailing
@@ -149,11 +142,11 @@ def main():
 
     # set up Environment and variables
     if METHOD == trailing:
-        env = TrailEnv(FOLDER, STEPS, train_data, test_data, TEST_POINTS, val_data=VAL_DATA, val_starts=VAL_STARTS,
+        env = TrailEnv(FOLDER, STEPS, train_data, test_data, TEST_POINTS, 
                        limit_data=DATA_SIZE, one_hot=ONE_HOT, cost=COST, margin=MARGIN, turn=TURN,
                        ce=CE, dp=DP, normalize_in=NORMALIZE_IN, reset_margin=RESET_FROM_MARGIN)
     else:
-        env = DengEnv(FOLDER, STEPS, train_data, test_data, TEST_POINTS, val_data=VAL_DATA, val_starts=VAL_STARTS,
+        env = DengEnv(FOLDER, STEPS, train_data, test_data, TEST_POINTS, 
                       window_in=WINDOW_LENGTH, limit_data=DATA_SIZE, one_hot=ONE_HOT, cost=COST_D)
 
     # set up the model
@@ -181,8 +174,10 @@ def main():
         dqn.load_weights(TRAINED_WEIGHTS)
 
     if VALIDATE:
+        print ('=====================1=======================')
         train_w_validation(env, dqn)
     else:
+        print ('=====================2=======================')
         train(env, dqn)
 
     fin_stats(env, STEPS) #统计多头 空头 
