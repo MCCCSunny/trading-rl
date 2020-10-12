@@ -7,6 +7,7 @@ import plotter as plt
 # Miscellaneous imports
 import numpy as np
 import warnings
+import pandas as pd
 
 BUY = 1
 NEUTRAL = 0
@@ -45,7 +46,7 @@ class Environment(gym.Env):
         self.test_starts_index = 0
         self.val_starts_index = 0
 
-        self.memory = []
+        self.memory = pd.DataFrame(columns=['close', 'action', 'position', 'date'])
 
         self.action_space = gym.spaces.Discrete(3)
         if self.one_hot:

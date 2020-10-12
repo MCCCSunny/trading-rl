@@ -8,6 +8,7 @@ import plotter as plt
 import os
 import random
 import numpy as np
+import pandas as pd
 import pdb
 # Set indices for different trade actions
 BUY = 1
@@ -77,8 +78,8 @@ class Trail(Environment):
         # If the are still more data to process
         if (self.position + 1) < self.data_size:
             # Save the current state
-            state = [self.position, c_val, self.action, self.value]
-            self.memory.append(state)
+            state = [self.position, c_val, self.action, self.value, self.data.index[self.position]]
+            self.memory.loc[self.position] = state[1:]
 
             # Move the agent to the next timestep
             self.position += 1
@@ -129,7 +130,7 @@ class Trail(Environment):
         self.rewards.append(self.epoch_reward)
         # Reset all variables
         self.epoch_reward = 0
-        self.memory = []
+        self.memory = pd.DataFrame(columns=['close', 'action', 'position', 'date'])
         self.long_actions = []
         self.short_actions = []
         self.trades = []

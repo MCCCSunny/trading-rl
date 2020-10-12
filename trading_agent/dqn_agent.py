@@ -28,15 +28,6 @@ import pandas as pd
 import pymongo
 client = pymongo.MongoClient('localhost', 27017)
 db = client['JointQuant']
-table = db['600036']
-startTime = '2005-01-01'
-endTime = '2019-12-31'
-eTime_train ='2016-04-19'
-sTime_test = '2016-04-20'
-# 读取数据
-stock_data = pd.DataFrame(list(table.find()))
-stock_data = stock_data.set_index('date').loc[startTime:endTime]
-close_data = stock_data[['close']]
 
 ENV_NAME = 'trading-rl'
 trailing = 'trailing'
@@ -52,11 +43,10 @@ CPU_cores = 8  # If CPU, how many cores
 GPU_mem_use = 0.25  # In both cases the GPU mem is going to be used, choose fraction to use
 
 # Data Parameters
-train_data = close_data.loc[:eTime_train]
+
 MAX_DATA_SIZE = 12000  # Maximum size of data
 DATA_SIZE = MAX_DATA_SIZE  # Size of data you want to use for training
 
-test_data = close_data.loc[sTime_test:]
 TEST_EPOCHS = 1  # How many test runs / epochs
 TEST_POINTS = [0]  # From which point in the time series to start in each epoch
 TEST_STEPS = 2000  # For how many points to run the epoch
@@ -100,7 +90,7 @@ PERCENTAGE_EXPLORE = 0.8    # should be around 80% of all steps
 EXPLORE_STEPS = int(ALL_STEPS * PERCENTAGE_EXPLORE)  # after how many steps should exploration be stabilized
 
 # Neural Net Parameters
-NODES = 16  # Neurons
+NODES = 64  # Neurons
 BATCH_SIZE = 64
 MEM_SIZE = 100000
 
@@ -109,9 +99,6 @@ PLOT_Q_VALUES = False  # in order to do this you need to edit appropriately the 
 START_FROM_TRAINED = False  # If you want to already start training from some weights...
 TRAINED_WEIGHTS = None  # Provide here the path to the h5f / hdf5 weight file
 
-now = datetime.datetime.now()
-DATE = str(now.day) + "_" + str(now.month) + "_" + str(now.hour) + "_" + str(now.minute)
-FOLDER = '/'+METHOD + "/e_" + str(EPOCHS) + "_s_" + str(STEPS) + "_w_" + str(WINDOW_LENGTH) + "_" + DATE
 
 
 def config_hard():
@@ -134,7 +121,7 @@ def config_hard():
 
 
 
-def main():
+def main(train_data, test_data, FOLDER):
     """
     Initialization of all parameters, neural net, agent, training, validation and testing
     """
@@ -186,14 +173,12 @@ def main():
 
 def set_model(env):
     model = Sequential()
-    model.add(Flatten(input_shape=(WINDOW_LENGTH,) + env.observation_space.shape))
+    model.add(Flatten(input_shape=(WINDOW_LENGTH,) + env.observation_space.shape)) # 将100个过去窗口和5个特征进行flatten
     model.add(Dense(NODES)) #全连接层
     model.add(PReLU()) #
-    model.add(Dense(NODES * 2))
+    model.add(Dense(NODES))
     model.add(PReLU())
-    model.add(Dense(NODES * 4))
-    model.add(PReLU())
-    model.add(Dense(NODES * 2))
+    model.add(Dense(NODES))
     model.add(PReLU())
     model.add(Dense(env.action_space.n))
     model.add(Activation('linear'))
@@ -267,7 +252,8 @@ def train(env, dqn):
 
     env.plot_actions()
     env.calculate_pnl(env_type=METHOD)
-    np.save(env.folder + '/memory.npy', env.memory)
+    env.memory.to_csv(env.folder + '/memory.csv')
+    #np.save(env.folder + '/memory.npy', env.memory)
     env.plot_train_rewards()
     with open(env.folder + '/train_rewards.out', "w") as text_file:
         text_file.write(str(env.rewards))
@@ -279,7 +265,8 @@ def test(env, dqn):
         dqn.test(env, nb_episodes=1, nb_max_episode_steps=TEST_STEPS, visualize=False)
 
         env.calculate_pnl(env_type=METHOD)
-        np.save(env.test_folder + '/memory_' + str(env.test_starts_index) + '.npy', env.memory)
+        env.memory.to_csv(env.test_folder + '/memory_' + str(env.test_starts_index)+'.csv')
+        #np.save(env.test_folder + '/memory_' + str(env.test_starts_index) + '.npy', env.memory)
         env.plot_actions()
         if METHOD == trailing:
             env.plot_trail()
@@ -341,4 +328,28 @@ def write_model_info():
 
 if __name__ == '__main__':
     config_hard() #配置 GPU or CPU
-    main()
+    codeDict = {'600000': ['2005-01-01', '2016-04-19', '2016-04-20', '2019-12-31'],
+                '600498': ['2005-01-01', '2016-04-19', '2016-04-20', '2019-12-31'],
+                '002032': ['2005-01-01', '2016-04-19', '2016-04-20', '2019-12-31'],
+                '000568': ['2005-01-01', '2016-04-19', '2016-04-20', '2019-12-31'],
+                '000768': ['2007-01-01', '2016-10-10', '2016-10-11', '2019-12-31'],
+                '600221': ['2007-01-01', '2016-10-10', '2016-10-11', '2019-12-31'],
+                '601628': ['2008-01-01', '2017-01-02', '2017-01-03', '2019-12-31'],
+                '000860': ['2005-01-01', '2016-04-19', '2016-04-20', '2019-12-31']}
+    for code in codeDict.keys():
+        table = db[code]
+        startTime = codeDict[code][0]       
+        eTime_train = codeDict[code][1]
+        sTime_test = codeDict[code][2]
+        endTime = codeDict[code][-1]
+        now = datetime.datetime.now()
+        DATE = str(now.day) + "_" + str(now.month) + "_" + str(now.hour) + "_" + str(now.minute)
+        FOLDER = '/'+METHOD + "/"+str(code)+"_e_" + str(EPOCHS) + "_s_" + str(STEPS) + "_w_" + str(WINDOW_LENGTH) + "_" + DATE
+        
+        # 读取数据
+        stock_data = pd.DataFrame(list(table.find()))
+        stock_data = stock_data.set_index('date').loc[startTime:endTime]
+        close_data = stock_data[['close']]
+        train_data = close_data.loc[:eTime_train]
+        test_data = close_data.loc[sTime_test:]
+        main(train_data, test_data, FOLDER)
